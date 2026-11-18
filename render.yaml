@@ -34,7 +34,9 @@ services:
     # O Spring Boot não tem actuator; usa /swagger-ui.html como health check
     # (endpoint público que retorna 200 quando a aplicação está rodando)
     healthCheckPath: /swagger-ui.html
-    startCommand: "java $JAVA_OPTS -jar app.jar --spring.profiles.active=render"
+    # O startCommand não é permitido com env: docker.
+    # O Dockerfile backend usa CMD que permite sobrescrever os argumentos.
+    # O perfil "render" é ativado via SPRING_PROFILES_ACTIVE nas envVars abaixo.
     buildFilter:
       paths:
         - backend/MotivaFIt/**
@@ -80,6 +82,9 @@ services:
       # JVM — memória reduzida para o plano free (512 MB total)
       - key: JAVA_OPTS
         value: "-Xms128m -Xmx256m -XX:+UseG1GC"
+      # Ativa o perfil "render" do Spring Boot (equivalente a --spring.profiles.active=render)
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
 
   # ---------------------------------------------------------------------------
   # Frontend React (Static Site)
@@ -87,7 +92,7 @@ services:
   - type: web
     name: motivafit-front
     env: static
-    region: oregon
+    # Static sites no Render não suportam o campo region.
     buildCommand: "cd frontend/MotivaFit && npm ci && npm run build"
     staticPublishPath: frontend/MotivaFit/dist
     buildFilter:
