@@ -1,0 +1,27 @@
+# Ignorar arquivos desnecessários durante o build do Render
+node_modules/
+dist/
+target/
+.m2/
+.env
+.env.local
+.env.*.local
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.log
+.DS_Store
+terraform.tfvars
+*.tfstate
+*.tfstate.backup
+infra/terraform/
+infra/nginx/
+infra/ecs/
+docker-compose.dev.yml
+docker-compose.prod.yml
+.github/
+docs/

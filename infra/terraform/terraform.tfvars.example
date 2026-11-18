@@ -1,0 +1,36 @@
+# =============================================================================
+# Terraform Variables — Exemplo
+# =============================================================================
+# Copie este arquivo para terraform.tfvars e preencha os valores.
+# NUNCA commit o terraform.tfvars com senhas reais.
+# =============================================================================
+
+aws_region = "us-east-1"
+project_name = "motivafit"
+environment  = "prod"
+
+# VPC
+vpc_cidr        = "10.0.0.0/16"
+public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnets = ["10.0.10.0/24", "10.0.20.0/24"]
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+# RDS PostgreSQL
+db_identifier     = "motivafit-db"
+db_engine_version = "16.2"
+db_instance_class = "db.t3.medium"
+db_name           = "motivafit"
+# ATENCAO: Substitua por valores seguros!
+db_username = "motivafit_admin"
+db_password = "SUBSTITUA_POR_SENHA_SEGURA"
+db_allocated_storage = 20
+db_multi_az          = true
+db_backup_retention  = 7
+
+# ECS
+cluster_name   = "motivafit-cluster"
+frontend_image = "motivafit-frontend:latest"
+backend_image  = "motivafit-backend:latest"
+
+# ALB
+alb_name = "motivafit-alb"

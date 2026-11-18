@@ -1,0 +1,30 @@
+# =============================================================================
+# Perfil: Render.com (Deploy Gratuito)
+# =============================================================================
+# Sobrescreve application.yaml para o ambiente Render.com.
+# O Render injeta DB_URL no formato: postgresql://user:pass@host:port/db
+# Este perfil converte para jdbc:postgresql:// adicionando o prefixo jdbc:.
+# =============================================================================
+
+spring:
+  datasource:
+    # O Render Postgres connectionString usa "postgresql://", o JDBC precisa de "jdbc:postgresql://"
+    url: "jdbc:${DB_URL}"
+
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update  # permite criar/alterar tabelas automaticamente em teste
+
+  flyway:
+    enabled: false  # sem migrations no ambiente de teste
+
+security:
+  cookies:
+    secure: true  # HTTPS obrigatório no Render
+  jwt:
+    expiration-minutes: 15
+    refresh-expiration-days: 7
+
+# Desabilita devtools
+spring.devtools.add-properties: false

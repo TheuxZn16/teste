@@ -1,0 +1,83 @@
+# =============================================================================
+# Docker Compose — Ambiente de Desenvolvimento Local
+# =============================================================================
+# Uso: docker compose -f docker-compose.dev.yml up -d
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Banco de Dados PostgreSQL
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: motivafit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-motivafit}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-motivafit_pass}
+      POSTGRES_DB: ${DB_DATABASE:-motivafit}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-motivafit} -d ${DB_DATABASE:-motivafit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Backend Spring Boot (modo desenvolvimento)
+  # ---------------------------------------------------------------------------
+  backend:
+    image: maven:3.9-eclipse-temurin-25
+    container_name: motivafit-backend
+    working_dir: /app
+    volumes:
+      - ./backend/MotivaFIt:/app
+      - ~/.m2:/root/.m2
+    ports:
+      - "8080:8080"
+      - "5005:5005"
+    command: >
+      mvn spring-boot:run
+      -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://db:5432/${DB_DATABASE:-motivafit}
+      DB_USER: ${DB_USER:-motivafit}
+      DB_PASSWORD: ${DB_PASSWORD:-motivafit_pass}
+      COOKIE_SECURE: "false"
+      CORS_ALLOWED_ORIGIN: http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET:-dGVzdC1zZWNyZXQta2V5LWZvci1kZXZlbG9wbWVudC1vbmx5LWhhbmdlLXRoaXMh}
+      JWT_ISSUER: ${JWT_ISSUER:-motivafit-dev}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-7}
+      SUPERUSUARIO_EMAIL: ${SUPERUSUARIO_EMAIL:-superusuario@motivafit.com}
+      SUPERUSUARIO_SENHA: ${SUPERUSUARIO_SENHA:-SenhaBootstrap123!}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Frontend React + Vite (modo desenvolvimento)
+  # ---------------------------------------------------------------------------
+  frontend:
+    image: node:22-alpine
+    container_name: motivafit-frontend
+    working_dir: /app
+    init: true
+    ports:
+      - "3000:3000"
+    environment:
+      API_PROXY_TARGET: http://backend:8080
+    volumes:
+      - ./frontend/MotivaFit:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 3000 --strictPort"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  frontend_node_modules:

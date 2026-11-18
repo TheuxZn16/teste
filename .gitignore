@@ -1,1 +1,35 @@
+# Dependências
 node_modules/
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.*.local
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfvars
+
+# Certificados SSL (nunca commit)
+infra/nginx/ssl/*.key
+infra/nginx/ssl/*.pem
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.junie
+
+# Build
+backend/MotivaFIt/target/
+frontend/MotivaFit/dist/
+
+# Sistema
+.DS_Store
+*.log
+npm-debug.log*

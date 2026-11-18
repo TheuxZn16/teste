@@ -1,0 +1,88 @@
+# =============================================================================
+# Docker Compose — Ambiente de Produção (Local / Staging)
+# =============================================================================
+# Uso: docker compose -f docker-compose.prod.yml up -d --build
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Nginx — Reverse Proxy unificado (Frontend + Backend)
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: motivafit-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # Frontend React (build estático + Nginx interno)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend/MotivaFit
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    container_name: motivafit-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # Backend Spring Boot (produção)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend/MotivaFIt
+      dockerfile: Dockerfile
+    container_name: motivafit-backend
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      COOKIE_SECURE: "true"
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-https://localhost}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-motivafit}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-15}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-7}
+      SUPERUSUARIO_EMAIL: ${SUPERUSUARIO_EMAIL:-}
+      SUPERUSUARIO_SENHA: ${SUPERUSUARIO_SENHA:-}
+    depends_on:
+      - db
+
+  # ---------------------------------------------------------------------------
+  # Banco de Dados PostgreSQL (local — em produção usar RDS)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: motivafit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:-motivafit}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_DATABASE:-motivafit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

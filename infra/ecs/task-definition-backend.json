@@ -1,0 +1,67 @@
+{
+  "family": "motivafit-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/motivafit-backend-task-role",
+  "containerDefinitions": [
+    {
+      "name": "motivafit-backend",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/motivafit-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "prod" },
+        { "name": "COOKIE_SECURE", "value": "true" }
+      ],
+      "secrets": [
+        {
+          "name": "DB_URL",
+          "valueFrom": "/motivafit/prod/DB_URL"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "/motivafit/prod/DB_USER"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "/motivafit/prod/DB_PASSWORD"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "/motivafit/prod/JWT_SECRET"
+        },
+        {
+          "name": "JWT_ISSUER",
+          "valueFrom": "/motivafit/prod/JWT_ISSUER"
+        },
+        {
+          "name": "CORS_ALLOWED_ORIGIN",
+          "valueFrom": "/motivafit/prod/CORS_ALLOWED_ORIGIN"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/motivafit-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "backend"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

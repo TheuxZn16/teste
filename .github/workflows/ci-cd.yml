@@ -1,0 +1,208 @@
+# =============================================================================
+# CI/CD — MotivaFit
+# =============================================================================
+# Pipeline completa:
+#   1. Lint + Testes (Frontend + Backend)
+#   2. Build das imagens Docker
+#   3. Push para Amazon ECR
+#   4. Deploy via ECS (apenas na branch main)
+# =============================================================================
+
+name: CI/CD MotivaFit
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_FRONTEND_REPO: motivafit-frontend
+  ECR_BACKEND_REPO: motivafit-backend
+  ECS_CLUSTER: motivafit-cluster
+  ECS_FRONTEND_SERVICE: motivafit-frontend-svc
+  ECS_BACKEND_SERVICE: motivafit-backend-svc
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Validação — Lint e Testes
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validar Frontend e Backend
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/MotivaFit/package-lock.json
+
+      - name: Instalar dependências do Frontend
+        run: cd frontend/MotivaFit && npm ci
+
+      - name: Lint do Frontend
+        run: cd frontend/MotivaFit && npm run lint
+
+      - name: Testes do Frontend
+        run: cd frontend/MotivaFit && npm test
+
+      - name: Build do Frontend
+        run: cd frontend/MotivaFit && npm run build
+
+      - name: Configurar JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: "25"
+          distribution: temurin
+          cache: maven
+
+      - name: Testes do Backend
+        run: cd backend/MotivaFIt && mvn test -q
+
+      - name: Gerar versão para imagem
+        id: meta
+        run: |
+          VERSION="${GITHUB_SHA::8}-${GITHUB_RUN_NUMBER}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # 2. Build e Push das imagens Docker para ECR
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build e Push Docker
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    outputs:
+      version: ${{ needs.validate.outputs.version }}
+      frontend-image: ${{ steps.ecr-login.outputs.ecr_url }}/${{ env.ECR_FRONTEND_REPO }}:${{ needs.validate.outputs.version }}
+      backend-image: ${{ steps.ecr-login.outputs.ecr_url }}/${{ env.ECR_BACKEND_REPO }}:${{ needs.validate.outputs.version }}
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login no Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Configurar QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build e Push — Frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend/MotivaFit
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.ecr_url }}/${{ env.ECR_FRONTEND_REPO }}:${{ needs.validate.outputs.version }}
+            ${{ steps.ecr-login.outputs.ecr_url }}/${{ env.ECR_FRONTEND_REPO }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_BASE_URL=
+
+      - name: Build e Push — Backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend/MotivaFIt
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.ecr_url }}/${{ env.ECR_BACKEND_REPO }}:${{ needs.validate.outputs.version }}
+            ${{ steps.ecr-login.outputs.ecr_url }}/${{ env.ECR_BACKEND_REPO }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # 3. Deploy para ECS (apenas merge na main)
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy para AWS ECS
+    needs: [validate, build-and-push]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://motivafit.com
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar variáveis de ambiente do Backend
+        run: |
+          aws ssm put-parameter --name "/motivafit/prod/JWT_SECRET" --value "${{ secrets.JWT_SECRET }}" --type SecureString --overwrite
+          aws ssm put-parameter --name "/motivafit/prod/JWT_ISSUER" --value "${{ secrets.JWT_ISSUER }}" --type SecureString --overwrite
+          aws ssm put-parameter --name "/motivafit/prod/DB_URL" --value "${{ secrets.DB_URL }}" --type SecureString --overwrite
+          aws ssm put-parameter --name "/motivafit/prod/DB_USER" --value "${{ secrets.DB_USER }}" --type SecureString --overwrite
+          aws ssm put-parameter --name "/motivafit/prod/DB_PASSWORD" --value "${{ secrets.DB_PASSWORD }}" --type SecureString --overwrite
+          aws ssm put-parameter --name "/motivafit/prod/CORS_ALLOWED_ORIGIN" --value "${{ secrets.CORS_ALLOWED_ORIGIN }}" --type SecureString --overwrite
+
+      - name: Deploy — Backend Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: infra/ecs/task-definition-backend.json
+          service: ${{ env.ECS_BACKEND_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          desired-count: 2
+          configure-aws-credentials: false
+          task-definition-overrides: |
+            [
+              {
+                "name": "motivafit-backend",
+                "image": "${{ needs.build-and-push.outputs.backend-image }}"
+              }
+            ]
+
+      - name: Deploy — Frontend Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: infra/ecs/task-definition-frontend.json
+          service: ${{ env.ECS_FRONTEND_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          desired-count: 2
+          configure-aws-credentials: false
+          task-definition-overrides: |
+            [
+              {
+                "name": "motivafit-frontend",
+                "image": "${{ needs.build-and-push.outputs.frontend-image }}"
+              }
+            ]
+
+      - name: Verificar deploy
+        run: |
+          echo "Deploy concluído com sucesso!"
+          echo "Versão: ${{ needs.validate.outputs.version }}"
+          echo "Frontend: ${{ needs.build-and-push.outputs.frontend-image }}"
+          echo "Backend: ${{ needs.build-and-push.outputs.backend-image }}"
