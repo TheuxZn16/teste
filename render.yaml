@@ -41,12 +41,20 @@ services:
       paths:
         - backend/MotivaFIt/**
     envVars:
-      # Banco de dados — o backend espera DB_URL, DB_USER e DB_PASSWORD separados
-      # O Render Postgres fornece estes valores via fromDatabase
-      - key: DB_URL
+      # Banco de dados — o Render Postgres fornece variáveis separadas via fromDatabase
+      # Usamos host, port, database, user e password para montar a URL JDBC corretamente
+      - key: DB_HOST
         fromDatabase:
           name: motivafit-db
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: motivafit-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: motivafit-db
+          property: database
       - key: DB_USER
         fromDatabase:
           name: motivafit-db

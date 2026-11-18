@@ -2,14 +2,16 @@
 # Perfil: Render.com (Deploy Gratuito)
 # =============================================================================
 # Sobrescreve application.yaml para o ambiente Render.com.
-# O Render injeta DB_URL no formato: postgresql://user:pass@host:port/db
-# Este perfil converte para jdbc:postgresql:// adicionando o prefixo jdbc:.
+# O Render injeta variáveis separadas: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD.
+# A URL JDBC é montada a partir dessas variáveis para garantir o formato correto.
 # =============================================================================
 
 spring:
   datasource:
-    # O Render Postgres connectionString usa "postgresql://", o JDBC precisa de "jdbc:postgresql://"
-    url: "jdbc:${DB_URL}"
+    # Monta a URL JDBC usando variáveis separadas do Render para incluir a porta
+    url: "jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
 
   jpa:
     show-sql: false
