@@ -106,6 +106,23 @@ services:
     buildFilter:
       paths:
         - frontend/MotivaFit/**
+    # Fallback para SPA: todas as rotas não encontradas retornam index.html
+    # O React Router cuida do roteamento no lado do cliente
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # Cache para assets estáticos (JS, CSS, imagens com hash)
+      - path: /assets/*
+        headers:
+          - name: Cache-Control
+            value: "public, max-age=31536000, immutable"
+      # Sem cache para index.html e rotas dinâmicas
+      - path: /
+        headers:
+          - name: Cache-Control
+            value: "public, max-age=0, must-revalidate"
     envVars:
       # URL base da API — o frontend usa esta variável para todas as chamadas
       # Como frontend e backend são serviços separados no Render, a URL deve

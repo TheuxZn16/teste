@@ -7,6 +7,8 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
+    // Caminho base absoluto para assets estáticos (necessário para Render Static Site)
+    base: '/',
     plugins: [react(), tailwindcss()],
     server: {
       port: 3000,
